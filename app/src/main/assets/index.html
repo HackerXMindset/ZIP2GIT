@@ -451,7 +451,7 @@ async function gh(path, opt = {}) {
     let j = null; try { j = await res.json(); } catch {}
     const msg = (j && j.message) || res.statusText;
     const retry = res.status >= 500 || res.status === 429 || (res.status === 403 && /rate limit|abuse|secondary/i.test(msg));
-    if (retry && attempt < 3) {
+    if (retry && attempt < (opt.retries ?? 3)) {
       const ra = Number(res.headers.get('retry-after'));
       await sleep(Math.min(ra ? ra * 1000 : 1500 * (attempt + 1), 30000));
       continue;
@@ -884,9 +884,18 @@ async function push() {
         ...dels.map(d => ({ path: d.path, mode: d.mode, type: 'blob', sha: null }))
       ];
       progress(0.88, 'Building the commit…');
-      for (let k = 0; k < entries.length; k += 1000) {
-        const t = await gh(`${base}/git/trees`, { method: 'POST', body: { base_tree: tree, tree: entries.slice(k, k + 1000) } });
-        tree = t.sha;
+      // Large trees time out on GitHub, so add entries in small batches and shrink the batch on a timeout.
+      let size = 150;
+      for (let k = 0; k < entries.length;) {
+        const part = entries.slice(k, k + size);
+        try {
+          const t = await gh(`${base}/git/trees`, { method: 'POST', body: { base_tree: tree, tree: part }, retries: 0 });
+          tree = t.sha; k += part.length;
+          progress(0.88 + 0.07 * k / entries.length, `Building the commit… ${k} of ${entries.length}`);
+        } catch (e) {
+          if ((e.status >= 500 || /timed out|timeout/i.test(e.raw || e.message || '')) && size > 10) { size = Math.max(10, size >> 1); continue; }
+          throw e;
+        }
       }
       const c = await gh(`${base}/git/commits`, { method: 'POST', body: { message: msg, tree, parents: [head] } });
       progress(0.95, 'Updating the branch…');
