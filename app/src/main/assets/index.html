@@ -119,18 +119,29 @@ input::placeholder { color: var(--muted); opacity: 0.8; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { font-family: var(--font-mono); font-size: 13px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); }
 .chip b { font-weight: 500; }
+button.chip { cursor: pointer; color: inherit; min-height: 32px; }
+button.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); }
 .chip.A b { color: var(--add); } .chip.M b { color: var(--mod); } .chip.D b { color: var(--del); }
 .commit-line { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 
 .changes { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); overflow: hidden; }
+.changes.inner { border: 0; border-radius: 0; border-top: 1px solid var(--line); }
 .change { border-bottom: 1px solid var(--line); }
 .change:last-child { border-bottom: 0; }
 .change-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-width: 0; }
 .change-row input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+.grp { border-bottom: 1px solid var(--line); }
+.grp:last-child { border-bottom: 0; }
+.grp-head { display: flex; align-items: center; gap: 10px; padding: 2px 10px; background: var(--surface); }
+.grp-head input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+.grp-btn { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; min-height: 42px; background: none; border: 0; cursor: pointer; text-align: left; }
+.grp-btn .arrow { width: 1em; color: var(--muted); flex: none; }
 .st { font: 500 12px/1 var(--font-mono); width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; border: 1px solid currentColor; flex: none; }
-.st.A { color: var(--add); } .st.M { color: var(--mod); } .st.D { color: var(--del); }
+.st.A { color: var(--add); } .st.M { color: var(--mod); } .st.D { color: var(--del); } .st.E { color: var(--muted); }
 .path { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
 .path .dir { color: var(--muted); }
+.sub { display: block; font: 12px/1.4 var(--font-body); color: var(--muted); }
+.sub.warn { color: var(--del); }
 .size { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
 .diff { margin: 0; padding: 8px 0; border-top: 1px solid var(--line); background: var(--surface); overflow-x: auto; font: 12px/1.5 var(--font-mono); }
 .diff .ln { display: block; padding: 0 10px; white-space: pre; min-width: max-content; }
@@ -141,9 +152,10 @@ details.same > summary { cursor: pointer; color: var(--muted); font-size: 13px; 
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
 .history { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.history li { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--bg); min-width: 0; }
+.history li { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--bg); min-width: 0; display: grid; gap: 6px; }
 .history .h1 { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
 .history .h2 { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.history .btn { justify-self: start; }
 
 .dock {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
@@ -156,9 +168,10 @@ details.same > summary { cursor: pointer; color: var(--muted); font-size: 13px; 
 .dock-in { max-width: 600px; margin: 0 auto; display: grid; gap: 8px; }
 .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
-.banner { font-size: 13.5px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); overflow-wrap: anywhere; }
+.banner { font-size: 13.5px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); overflow-wrap: anywhere; max-height: 30vh; overflow-y: auto; }
 .banner.err { border-color: var(--del); color: var(--del); }
 .banner.ok { border-color: var(--add); color: var(--add); }
+.banner.warn { border-color: var(--mod); color: var(--mod); }
 .banner a { color: inherit; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }
 </style>
@@ -179,6 +192,8 @@ details.same > summary { cursor: pointer; color: var(--muted); font-size: 13px; 
     </button>
   </header>
 
+  <div class="banner warn" id="update" hidden></div>
+
   <section class="card" aria-labelledby="h-repo">
     <div class="card-head"><span class="step">1</span><h2 id="h-repo">Repository</h2></div>
     <div class="inline" id="repo-pick-row" hidden>
@@ -198,7 +213,8 @@ details.same > summary { cursor: pointer; color: var(--muted); font-size: 13px; 
       </div>
       <div class="hint">Needs <b>repo</b> scope (classic) or <b>Contents: read and write</b> (fine-grained). <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">Create a token</a>. It is sent only to api.github.com.</div>
     </div>
-    <label class="check"><input type="checkbox" id="remember"><span>Remember token on this device<small>Stored in this browser only.</small></span></label>
+    <label class="check"><input type="checkbox" id="remember"><span>Remember token on this device<small id="remember-note">Stored in this browser only.</small></span></label>
+    <label class="check" id="lock-row" hidden><input type="checkbox" id="lock"><span>Require screen lock to use the saved token<small>Asks for your fingerprint, PIN or pattern when Pushbox opens.</small></span></label>
     <button class="btn" id="btn-test" type="button">Test token and load my repos</button>
     <div class="status" id="auth-status" role="status"></div>
     <div class="repo-panel" id="repo-panel" hidden>
@@ -213,9 +229,11 @@ details.same > summary { cursor: pointer; color: var(--muted); font-size: 13px; 
       </div>
       <div class="field">
         <label for="msg">Commit message</label>
-        <input id="msg" type="text" autocomplete="off" value="Update project files">
+        <input id="msg" type="text" autocomplete="off" placeholder="Describe the changes automatically">
+        <div class="hint">Leave empty and Pushbox writes it from your changes.</div>
       </div>
     </div>
+    <label class="check"><input type="checkbox" id="pr"><span>Push to a new branch<small>Creates a branch for this push and gives you a link to open a pull request.</small></span></label>
   </section>
 
   <section class="card" aria-labelledby="h-files">
@@ -253,13 +271,13 @@ details.same > summary { cursor: pointer; color: var(--muted); font-size: 13px; 
     <div class="card-head"><span class="step">3</span><h2 id="h-review">Review changes</h2></div>
     <div class="commit-line" id="base-line"></div>
     <div class="chips" id="chips"></div>
-    <div class="banner" id="warn" hidden></div>
+    <div class="banner warn" id="warn" hidden></div>
+    <input id="q" type="search" placeholder="Search changed files" autocomplete="off" aria-label="Search changed files">
     <div class="toolbar" id="toolbar">
-      <button class="btn small" id="sel-all" type="button">Select all</button>
-      <button class="btn small" id="sel-none" type="button">Select none</button>
+      <button class="btn small" id="sel-all" type="button">Select shown</button>
+      <button class="btn small" id="sel-none" type="button">Deselect shown</button>
     </div>
     <ul class="changes" id="changes"></ul>
-    <button class="btn small" id="more" type="button" hidden>Show more</button>
     <details class="same" id="same" hidden><summary id="same-sum"></summary><ul class="changes" id="same-list"></ul></details>
   </section>
 
@@ -332,6 +350,46 @@ function isMeta(path, prefix) {
   if (pre && p.startsWith(pre + '/')) p = p.slice(pre.length + 1);
   return p.startsWith('.github/') || /^(README|LICENSE|LICENCE|CHANGELOG)(\.[\w-]+)?$/i.test(p) || p === '.gitignore';
 }
+function toLF(bytes) {
+  if (!bytes.includes(13)) return bytes;
+  const out = new Uint8Array(bytes.length); let n = 0;
+  for (let i = 0; i < bytes.length; i++) { if (bytes[i] === 13 && bytes[i + 1] === 10) continue; out[n++] = bytes[i]; }
+  return out.subarray(0, n);
+}
+function toCRLF(bytes) {
+  const lf = toLF(bytes); let extra = 0;
+  for (let i = 0; i < lf.length; i++) if (lf[i] === 10) extra++;
+  const out = new Uint8Array(lf.length + extra); let n = 0;
+  for (let i = 0; i < lf.length; i++) { if (lf[i] === 10) out[n++] = 13; out[n++] = lf[i]; }
+  return out;
+}
+const SECRET_RULES = [
+  ['GitHub token', /\bgh[pousr]_[A-Za-z0-9]{36,}\b|\bgithub_pat_[A-Za-z0-9_]{50,}\b/],
+  ['AWS access key', /\bAKIA[0-9A-Z]{16}\b/],
+  ['Google API key', /\bAIza[0-9A-Za-z_-]{35}\b/],
+  ['private key', /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----/],
+  ['Slack token', /\bxox[abprs]-[A-Za-z0-9-]{10,}/],
+  ['Telegram bot token', /\b\d{8,10}:[A-Za-z0-9_-]{35}\b/],
+  ['Stripe live key', /\b[sr]k_live_[A-Za-z0-9]{20,}/],
+  ['API key (sk-...)', /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{32,}/]
+];
+function secretScan(path, text) {
+  const hits = [];
+  const base = path.split('/').pop();
+  if (/^\.env(\..+)?$/.test(base) && !/\.(example|sample|template)$/.test(base)) hits.push('.env file');
+  if (/^(id_rsa|id_ed25519|id_ecdsa)$/.test(base) || /\.(pem|p12|pfx|jks|keystore)$/i.test(base)) hits.push('key or certificate file');
+  if (/^(service-account.*|.*credentials)\.json$/i.test(base)) hits.push('credentials file');
+  if (text) for (const [label, re] of SECRET_RULES) if (re.test(text)) hits.push(label);
+  return hits;
+}
+function autoMessage(a, m, d) {
+  const parts = [];
+  if (a) parts.push('add ' + a);
+  if (m) parts.push('update ' + m);
+  if (d) parts.push('delete ' + d);
+  const n = a + m + d;
+  return parts.length ? `Sync ${n} file${n === 1 ? '' : 's'}: ${parts.join(', ')}` : 'Update project files';
+}
 function sha1hex(bytes) {
   const l = bytes.length, nb = ((l + 8) >> 6) + 1, w = new Uint32Array(nb * 16);
   for (let i = 0; i < l; i++) w[i >> 2] |= bytes[i] << (24 - (i % 4) * 8);
@@ -397,6 +455,50 @@ function toB64(bytes) {
   return btoa(s);
 }
 function encPath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+function splitPath(p) { const k = p.lastIndexOf('/'); return k < 0 ? ['', p] : [p.slice(0, k), p.slice(k + 1)]; }
+function depthOf(d) { return d === '' ? 0 : d.split('/').length; }
+function indexTree(rootSha, entries) {
+  const dirs = new Map([['', { sha: rootSha, kids: new Set() }]]), blobs = new Map();
+  for (const e of entries) {
+    const [d, n] = splitPath(e.path);
+    if (!dirs.has(d)) dirs.set(d, { sha: null, kids: new Set() });
+    dirs.get(d).kids.add(n);
+    if (e.type === 'tree') { if (!dirs.has(e.path)) dirs.set(e.path, { sha: e.sha, kids: new Set() }); else dirs.get(e.path).sha = e.sha; }
+    else if (e.type === 'blob') blobs.set(e.path, { sha: e.sha, mode: e.mode });
+  }
+  return { dirs, blobs };
+}
+/* remoteDirs: Map of directory path ('' is the root) to { sha, kids: Set of child names }.
+   adds: [{ path, mode, sha }], dels: [{ path }]. makeTree(baseSha|null, entries) returns a new tree sha.
+   Builds one small tree per touched folder, deepest first, the way Git itself does. Returns the root tree sha. */
+async function buildTrees(remoteDirs, adds, dels, makeTree) {
+  const dirs = new Map();
+  const get = d => { let x = dirs.get(d); if (!x) dirs.set(d, x = { files: [], delNames: [], childDirs: new Set() }); return x; };
+  for (const a of adds) { const [d, n] = splitPath(a.path); get(d).files.push({ name: n, mode: a.mode, sha: a.sha }); }
+  for (const x of dels) { const [d, n] = splitPath(x.path); get(d).delNames.push(n); }
+  for (const d of [...dirs.keys()]) { let cur = d; while (cur !== '') { const [pd, n] = splitPath(cur); get(pd).childDirs.add(n); cur = pd; } }
+  get('');
+  const order = [...dirs.keys()].sort((a, b) => depthOf(b) - depthOf(a));
+  const result = new Map();
+  for (const d of order) {
+    const info = dirs.get(d), rem = remoteDirs.get(d);
+    const remaining = new Set(rem ? rem.kids : []);
+    const entries = [];
+    for (const n of info.delNames) if (remaining.delete(n)) entries.push({ path: n, mode: '100644', type: 'blob', sha: null });
+    for (const f of info.files) { remaining.add(f.name); entries.push({ path: f.name, mode: f.mode || '100644', type: 'blob', sha: f.sha }); }
+    for (const c of info.childDirs) {
+      const r = result.get(d === '' ? c : d + '/' + c);
+      if (r === 'empty') { if (remaining.delete(c)) entries.push({ path: c, mode: '040000', type: 'tree', sha: null }); }
+      else { remaining.add(c); entries.push({ path: c, mode: '040000', type: 'tree', sha: r }); }
+    }
+    if (remaining.size === 0) {
+      if (d === '') throw new Error('This push would delete every file in the repository.');
+      result.set(d, 'empty'); continue;
+    }
+    result.set(d, await makeTree(rem ? rem.sha : null, entries));
+  }
+  return result.get('');
+}
 /*PURE-END*/
 
 const $ = id => document.getElementById(id);
@@ -406,8 +508,8 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
   del(k) { try { localStorage.removeItem(k); } catch {} }
 };
-const S = { raw: [], sourceName: '', plan: null, busy: false, shown: 0, token: '' };
-const PAGE = 300;
+const A = window.Android || null; /* present only inside the Android app */
+const S = { raw: [], sourceName: '', plan: null, busy: false, token: '', filter: 'all', q: '', open: new Map(), syncs: [], shownRows: [], uploaded: null, uploadedRepo: '', conc: 4, rateHit: false, msgTouched: false };
 
 /* ---------- theme ---------- */
 (function () {
@@ -450,7 +552,9 @@ async function gh(path, opt = {}) {
     if (res.ok) return res.status === 204 ? null : res.json();
     let j = null; try { j = await res.json(); } catch {}
     const msg = (j && j.message) || res.statusText;
-    const retry = res.status >= 500 || res.status === 429 || (res.status === 403 && /rate limit|abuse|secondary/i.test(msg));
+    const limited = res.status === 429 || (res.status === 403 && /rate limit|abuse|secondary/i.test(msg));
+    const retry = res.status >= 500 || limited;
+    if (limited) S.rateHit = true;
     if (retry && attempt < (opt.retries ?? 3)) {
       const ra = Number(res.headers.get('retry-after'));
       await sleep(Math.min(ra ? ra * 1000 : 1500 * (attempt + 1), 30000));
@@ -489,6 +593,13 @@ function el(tag, attrs, ...kids) {
   for (const c of kids) if (c != null) e.append(c);
   return e;
 }
+async function keepAwake(on) {
+  if (A) { try { A.keepAwake(on); } catch {} return; }
+  try {
+    if (on) S.wl = await navigator.wakeLock.request('screen');
+    else if (S.wl) { await S.wl.release(); S.wl = null; }
+  } catch {}
+}
 
 /* ---------- inputs & state ---------- */
 function invalidate() {
@@ -515,8 +626,10 @@ function refresh() {
   hint.textContent = miss.length ? 'Add ' + miss.join(', ').replace(/, ([^,]*)$/, ' and $1') + ' to continue.' : 'Compares your files with the repository. Nothing is uploaded yet.';
 }
 ['repo', 'branch', 'prefix'].forEach(id => $(id).addEventListener('input', invalidate));
+$('repo').addEventListener('change', () => { const rp = parseRepo($('repo').value); if (rp) loadCfg(rp.owner + '/' + rp.name); });
 $('token').addEventListener('input', () => { S.token = $('token').value.trim(); invalidate(); });
-$('msg').addEventListener('input', refresh);
+$('msg').addEventListener('input', () => { S.msgTouched = true; refresh(); });
+$('pr').addEventListener('change', invalidate);
 $('strip').addEventListener('change', invalidate);
 $('smart').addEventListener('change', invalidate);
 $('mirror').addEventListener('change', () => { $('meta-row').style.opacity = $('mirror').checked ? 1 : 0.5; if (S.plan) { S.plan.remoteOnly.forEach(d => d.selected = true); renderReview(); } });
@@ -534,13 +647,49 @@ $('eye').addEventListener('click', () => {
   $('eye').setAttribute('aria-label', show ? 'Hide token' : 'Show token');
 });
 
-/* ---------- saved settings ---------- */
+/* ---------- saved settings (per repository) ---------- */
+function cfgKey(repo) { return 'pushbox.cfg.' + repo.toLowerCase(); }
+function saveCfg(repo) {
+  store.set('pushbox.repo', repo);
+  store.set(cfgKey(repo), JSON.stringify({
+    branch: $('branch').value.trim(), prefix: $('prefix').value.trim(), smart: $('smart').checked,
+    meta: $('meta').checked, pr: $('pr').checked, msg: S.msgTouched ? $('msg').value : ''
+  }));
+}
+function loadCfg(repo) {
+  let c = null;
+  try { c = JSON.parse(store.get(cfgKey(repo)) || 'null'); } catch {}
+  if (!c) return;
+  $('branch').value = c.branch || ''; $('prefix').value = c.prefix || '';
+  $('smart').checked = c.smart !== false; $('meta').checked = c.meta !== false; $('pr').checked = !!c.pr;
+  if (c.msg) { $('msg').value = c.msg; S.msgTouched = true; }
+  invalidate();
+}
+
+/* ---------- token storage ---------- */
+function saveToken() {
+  const on = $('remember').checked;
+  if (A) { try { on ? A.saveToken(S.token) : A.clearToken(); } catch {} return; }
+  if (on) store.set('pushbox.token', S.token); else store.del('pushbox.token');
+}
+$('remember').addEventListener('change', saveToken);
+$('lock').addEventListener('change', () => { try { A.setLock($('lock').checked); } catch {} });
+window.pushboxToken = t => {
+  if (!t) return;
+  $('token').value = t; S.token = t; $('remember').checked = true;
+  refresh();
+};
 (function restore() {
-  const r = store.get('pushbox.repo'); if (r) $('repo').value = r;
-  const b = store.get('pushbox.branch'); if (b) $('branch').value = b;
-  const m = store.get('pushbox.msg'); if (m) $('msg').value = m;
-  const t = store.get('pushbox.token');
-  if (t) { $('token').value = t; S.token = t; $('remember').checked = true; }
+  const last = store.get('pushbox.repo');
+  if (last) { $('repo').value = last; loadCfg(last); }
+  if (A) {
+    $('lock-row').hidden = false;
+    $('remember-note').textContent = 'Stored encrypted on this phone.';
+    try { $('lock').checked = A.isLocked(); A.requestToken(); } catch {}
+  } else {
+    const t = store.get('pushbox.token');
+    if (t) { $('token').value = t; S.token = t; $('remember').checked = true; }
+  }
   renderHistory();
 })();
 
@@ -589,6 +738,7 @@ $('repo-filter').addEventListener('input', renderRepos);
 async function pickRepo(r) {
   $('repo').value = r.full_name;
   $('branch').value = r.default_branch || '';
+  loadCfg(r.full_name);
   $('repo-panel').hidden = true; $('repo-toggle').setAttribute('aria-expanded', 'false');
   invalidate();
   try {
@@ -596,14 +746,13 @@ async function pickRepo(r) {
     $('branches').replaceChildren(...br.map(b => el('option', { value: b.name })));
   } catch {}
 }
-function saveToken() {
-  if ($('remember').checked) store.set('pushbox.token', S.token); else store.del('pushbox.token');
-}
-$('remember').addEventListener('change', saveToken);
 
 /* ---------- file picking ---------- */
 $('pick-zip').onclick = () => { $('in-zip').value = ''; $('in-zip').click(); };
-$('pick-dir').onclick = () => { $('in-dir').value = ''; $('in-dir').click(); };
+$('pick-dir').onclick = () => {
+  if (A) { banner('', 'Choose a folder…'); try { A.pickFolder(); } catch { banner('err', 'Could not open the folder picker.'); } return; }
+  $('in-dir').value = ''; $('in-dir').click();
+};
 $('pick-files').onclick = () => { $('in-files').value = ''; $('in-files').click(); };
 
 function setSource(name, raw, ignored) {
@@ -621,8 +770,7 @@ function setSource(name, raw, ignored) {
 }
 $('clear').onclick = () => setSource('', [], 0);
 
-$('in-zip').addEventListener('change', async e => {
-  const f = e.target.files[0]; if (!f) return;
+async function loadZipFile(f) {
   if (typeof JSZip === 'undefined') { banner('err', 'The ZIP reader could not load. Connect to the internet and reload this page.'); return; }
   banner('', 'Reading ZIP…');
   try {
@@ -638,7 +786,8 @@ $('in-zip').addEventListener('change', async e => {
     if (!raw.length) { banner('err', 'That ZIP has no files in it.'); return; }
     setSource(f.name, raw, ignored);
   } catch (err) { banner('err', 'Could not open that ZIP. It may be damaged or password protected.'); }
-});
+}
+$('in-zip').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadZipFile(f); });
 function fromFileList(list, useRel) {
   const raw = []; let ignored = 0;
   for (const f of list) {
@@ -659,6 +808,35 @@ $('in-files').addEventListener('change', e => {
   if (!raw.length) return;
   setSource(raw.length === 1 ? raw[0].path : `${raw.length} files`, raw, ignored);
 });
+
+/* Called by the Android app: a folder the user picked, and files shared into Pushbox. */
+const readUrl = url => async () => new Uint8Array(await (await fetch(url)).arrayBuffer());
+window.pushboxFolderBusy = () => banner('', 'Reading folder…');
+window.pushboxFolderError = m => banner('err', 'Could not read that folder: ' + m);
+window.pushboxFolder = d => {
+  banner('');
+  if (!d) return;
+  const name = d.name || 'folder', raw = []; let ignored = d.skipped || 0;
+  for (const f of d.files) {
+    const rel = cleanPath(f.path);
+    if (!rel || isJunk(name + '/' + rel)) { ignored++; continue; }
+    raw.push({ path: name + '/' + rel, size: f.size, read: readUrl(f.url) });
+  }
+  if (!raw.length) { banner('err', 'That folder has no files.'); return; }
+  setSource(name + '/', raw, ignored);
+};
+window.pushboxShared = async items => {
+  try {
+    if (items.length === 1 && /\.zip$/i.test(items[0].name)) {
+      banner('', 'Loading shared ZIP…');
+      const b = await (await fetch(items[0].url)).blob();
+      await loadZipFile(new File([b], items[0].name));
+      return;
+    }
+    const raw = items.map(f => ({ path: cleanPath(f.name) || 'file', size: f.size, read: readUrl(f.url) }));
+    setSource(raw.length === 1 ? raw[0].path : `${raw.length} shared files`, raw, 0);
+  } catch { banner('err', 'Could not read the shared file.'); }
+};
 
 /* ---------- inspect ---------- */
 const mirrorOn = () => $('mirror').checked;
@@ -686,6 +864,7 @@ async function gitSha(bytes) {
   }
   return sha1hex(buf);
 }
+const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
 async function inspect() {
   const rp = parseRepo($('repo').value);
   if (!rp) { banner('err', 'Enter the repository as owner/name or a GitHub URL.'); return; }
@@ -696,7 +875,8 @@ async function inspect() {
     banner('', 'Contacting GitHub…'); progress(0.02);
     const info = await gh(`/repos/${owner}/${name}`);
     if (info.permissions && info.permissions.push === false) throw new GhError(403, 'This token can read the repository but not write to it.');
-    const branch = $('branch').value.trim() || info.default_branch;
+    let branch = $('branch').value.trim() || info.default_branch;
+    if ($('pr').checked && branch === info.default_branch) branch = 'pushbox-' + stamp();
     let head = await getHead(owner, name, branch);
     let branchExists = head !== null && head !== 'EMPTY';
     let empty = head === 'EMPTY';
@@ -705,28 +885,39 @@ async function inspect() {
       if (head === 'EMPTY') { empty = true; head = null; }
       else if (head === null) throw new GhError(404, 'Could not find the default branch of this repository.');
     }
-    const remote = new Map(); let truncated = false, baseTree = null;
+    const remote = new Map(), remoteDirs = new Map(); let truncated = false, baseTree = null;
     if (!empty) {
       progress(0.08, 'Reading the repository…');
       const c = await gh(`/repos/${owner}/${name}/git/commits/${head}`);
       baseTree = c.tree.sha;
       const t = await gh(`/repos/${owner}/${name}/git/trees/${baseTree}?recursive=1`);
       truncated = !!t.truncated;
-      for (const e of t.tree) if (e.type === 'blob') remote.set(e.path, { sha: e.sha, mode: e.mode });
+      const idx = indexTree(baseTree, t.tree);
+      idx.dirs.forEach((v, k) => remoteDirs.set(k, v));
+      idx.blobs.forEach((v, k) => remote.set(k, v));
     }
-    const locals = localMap(), items = [];
+    const remoteShas = new Set([...remote.values()].map(r => r.sha));
+    const isPublic = info.private === false;
+    const locals = localMap(), items = [], dec = new TextDecoder();
     let i = 0;
     for (const [path, r] of locals) {
       const bytes = await r.read();
       const sha = await gitSha(bytes);
       const rem = remote.get(path);
+      const isText = !bytes.subarray(0, 8000).includes(0);
+      const status = !rem ? 'A' : rem.sha === sha ? '=' : 'M';
+      let eolOnly = false, secrets = [];
+      if (status === 'M' && isText) {
+        if (bytes.includes(13)) eolOnly = (await gitSha(toLF(bytes))) === rem.sha;
+        else if (bytes.includes(10)) eolOnly = (await gitSha(toCRLF(bytes))) === rem.sha;
+      }
+      if (status !== '=') secrets = secretScan(path, isText && bytes.length <= 1000000 ? dec.decode(bytes) : '');
       items.push({
-        path, item: r, sha, size: bytes.length,
-        isText: !bytes.subarray(0, 8000).includes(0),
+        path, item: r, sha, size: bytes.length, isText, eolOnly, secrets,
         remoteSha: rem ? rem.sha : null,
         mode: rem && rem.mode !== '120000' ? rem.mode : '100644',
-        status: !rem ? 'A' : rem.sha === sha ? '=' : 'M',
-        selected: true
+        status,
+        selected: !eolOnly && !(isPublic && secrets.length)
       });
       if (++i % 10 === 0) { progress(0.1 + 0.85 * i / locals.size, `Comparing files… ${i} of ${locals.size}`); await sleep(0); }
     }
@@ -734,9 +925,9 @@ async function inspect() {
     for (const [path, rem] of remote) if (!locals.has(path)) remoteOnly.push({ path, sha: rem.sha, mode: rem.mode, selected: true });
     items.sort((a, b) => a.path.localeCompare(b.path));
     remoteOnly.sort((a, b) => a.path.localeCompare(b.path));
-    S.plan = { filtered: S.filtered, owner, name, repo: info.full_name, branch, head, baseTree, branchExists, empty, truncated, items, remoteOnly, defaultBranch: info.default_branch };
-    S.shown = PAGE;
-    store.set('pushbox.repo', info.full_name); store.set('pushbox.branch', $('branch').value.trim()); store.set('pushbox.msg', $('msg').value);
+    S.plan = { filtered: S.filtered, owner, name, repo: info.full_name, branch, head, baseTree, branchExists, empty, truncated, items, remoteOnly, remoteDirs, remoteShas, isPublic, defaultBranch: info.default_branch };
+    S.open = new Map(); S.filter = 'all'; S.q = ''; $('q').value = '';
+    saveCfg(info.full_name);
     banner(''); progress(null);
     renderReview();
     $('review').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -756,57 +947,112 @@ function selectedCount() {
   if (!S.plan) return 0;
   return S.plan.items.filter(i => i.status !== '=' && i.selected).length + delList().filter(d => d.selected).length;
 }
-function pathEl(p) {
-  const k = p.lastIndexOf('/');
-  return el('span', { class: 'path' }, k >= 0 ? el('span', { class: 'dir' }, p.slice(0, k + 1)) : null, p.slice(k + 1));
+function allRows() {
+  const rows = [];
+  for (const i of S.plan.items) if (i.status !== '=') rows.push({ cat: i.status === 'M' && i.eolOnly ? 'E' : i.status, i });
+  for (const d of delList()) rows.push({ cat: 'D', i: d });
+  return rows;
 }
+const FILTERS = [['all', 'All'], ['A', 'Added'], ['M', 'Changed'], ['D', 'Deleted'], ['E', 'Line endings']];
 function renderReview() {
   const p = S.plan; if (!p) return;
   $('review').hidden = false;
-  const a = p.items.filter(i => i.status === 'A'), m = p.items.filter(i => i.status === 'M'), same = p.items.filter(i => i.status === '='), d = delList();
+  const rows = allRows();
+  const count = c => c === 'all' ? rows.length : rows.filter(r => r.cat === c).length;
+  const same = p.items.filter(i => i.status === '=');
   $('base-line').textContent = p.empty
     ? `${p.repo} is empty. The first file creates the ${p.branch} branch.`
     : `${p.repo} · ${p.branchExists ? p.branch + ' @ ' + p.head.slice(0, 7) : 'new branch ' + p.branch + ' from ' + p.defaultBranch + ' @ ' + p.head.slice(0, 7)}`;
-  const chips = $('chips'); chips.replaceChildren(
-    el('span', { class: 'chip A' }, el('b', null, a.length), ' added'),
-    el('span', { class: 'chip M' }, el('b', null, m.length), ' changed'),
-    el('span', { class: 'chip D' }, el('b', null, d.length), ' deleted'),
-    el('span', { class: 'chip' }, el('b', null, same.length), ' same'),
-    p.filtered ? el('span', { class: 'chip' }, el('b', null, p.filtered), ' filtered out') : '');
+  const chips = FILTERS.filter(([c]) => c !== 'E' || count('E')).map(([c, label]) =>
+    el('button', { type: 'button', class: 'chip f ' + c, 'aria-pressed': String(S.filter === c), onclick: () => { S.filter = c; renderReview(); } },
+      el('b', null, count(c)), ' ' + label));
+  chips.push(el('span', { class: 'chip' }, el('b', null, same.length), ' same'));
+  if (p.filtered) chips.push(el('span', { class: 'chip' }, el('b', null, p.filtered), ' filtered out'));
+  $('chips').replaceChildren(...chips);
+
   const w = $('warn'), warns = [];
+  if (p.truncated) warns.push('This repository is very large, so GitHub returned a partial file list. Some files shown as added may already exist.');
   if (p.items.some(i => i.status !== '=' && i.path.startsWith('.github/workflows/')))
     warns.push("GitHub Actions workflows (.github/workflows) are included. Your token needs the 'workflow' scope (classic) or Workflows: read and write (fine-grained), or GitHub will reject the push.");
-  if (p.truncated) warns.push('This repository is very large, so GitHub returned a partial file list. Some files shown as added may already exist.');
-  if (d.length) warns.push(`${d.length} file${d.length > 1 ? 's' : ''} will be deleted from the repository. Uncheck any you want to keep.`);
+  const sec = p.items.filter(i => i.status !== '=' && i.secrets.length);
+  if (sec.length) warns.push(`${sec.length} file${sec.length > 1 ? 's look' : ' looks'} like ${sec.length > 1 ? 'they contain' : 'it contains'} secrets such as keys or tokens. ` + (p.isPublic ? 'This repository is public, so they are unticked. Tick one only if you are sure.' : 'Check them before pushing.'));
+  const eol = p.items.filter(i => i.status === 'M' && i.eolOnly);
+  if (eol.length) warns.push(`${eol.length} file${eol.length > 1 ? 's differ' : ' differs'} only in line endings and ${eol.length > 1 ? 'are' : 'is'} unticked.`);
+  const del = delList();
+  if (del.length) warns.push(`${del.length} file${del.length > 1 ? 's' : ''} will be deleted from the repository. Uncheck any you want to keep.`);
   const big = p.items.filter(i => i.status !== '=' && i.size > 100 * 1048576);
   if (big.length) warns.push(`${big.length} file${big.length > 1 ? 's are' : ' is'} over 100 MB and cannot be pushed with this method.`);
-  w.hidden = !warns.length; w.className = 'banner'; w.textContent = warns.join(' ');
-  const rows = [
-    ...a.map(i => ({ s: 'A', i })), ...m.map(i => ({ s: 'M', i })), ...d.map(i => ({ s: 'D', i }))
-  ];
+  w.hidden = !warns.length; w.textContent = warns.join(' ');
+
+  const q = S.q;
+  const shown = rows.filter(r => (S.filter === 'all' || r.cat === S.filter) && (!q || r.i.path.toLowerCase().includes(q)));
+  S.shownRows = shown; S.syncs = [];
+  const byDir = new Map();
+  for (const r of shown) { const [d] = splitPath(r.i.path); if (!byDir.has(d)) byDir.set(d, []); byDir.get(d).push(r); }
+  const dirs = [...byDir.keys()].sort((a, b) => a.localeCompare(b));
+  const autoOpen = shown.length <= 60 || !!q;
   const ul = $('changes'); ul.replaceChildren();
-  rows.slice(0, S.shown).forEach(r => ul.append(changeRow(r.s, r.i)));
-  const left = rows.length - S.shown;
-  $('more').hidden = left <= 0;
-  $('more').textContent = `Show ${Math.min(left, PAGE)} more (${left} hidden)`;
+  for (const d of dirs) ul.append(groupEl(d, byDir.get(d), autoOpen));
+  if (!dirs.length) ul.append(el('li', { class: 'hint', style: 'padding:12px' },
+    rows.length ? 'No files match.' : 'Everything in your upload already matches the repository. Nothing to push.'));
   $('toolbar').hidden = !rows.length;
-  if (!rows.length) ul.append(el('li', { class: 'hint', style: 'padding:12px' }, 'Everything in your upload already matches the repository. Nothing to push.'));
+  $('q').hidden = !rows.length;
+
   $('same').hidden = !same.length;
   $('same-sum').textContent = `${same.length} unchanged file${same.length === 1 ? '' : 's'}`;
   const sl = $('same-list'); sl.replaceChildren();
   if (same.length) $('same').ontoggle = () => {
-    if ($('same').open && !sl.children.length) same.slice(0, 500).forEach(i => sl.append(el('li', { class: 'change' }, el('div', { class: 'change-row' }, el('span', { class: 'st', style: 'color:var(--muted)' }, '='), pathEl(i.path), el('span', { class: 'size' }, fmtSize(i.size))))));
+    if ($('same').open && !sl.children.length) same.slice(0, 500).forEach(i => sl.append(el('li', { class: 'change' }, el('div', { class: 'change-row' }, el('span', { class: 'st E' }, '='), pathEl(i.path), el('span', { class: 'size' }, fmtSize(i.size))))));
   };
   refresh();
 }
-function changeRow(s, i) {
+function pathEl(p) {
+  const k = p.lastIndexOf('/');
+  return el('span', { class: 'path' }, k >= 0 ? el('span', { class: 'dir' }, p.slice(0, k + 1)) : null, p.slice(k + 1));
+}
+function groupEl(dir, rows, autoOpen) {
+  const cb = el('input', { type: 'checkbox', 'aria-label': 'Include all in ' + (dir || 'root') });
+  const arrow = el('span', { class: 'arrow', 'aria-hidden': 'true' }, '▸');
+  const btn = el('button', { type: 'button', class: 'grp-btn', 'aria-expanded': 'false' }, arrow,
+    el('span', { class: 'path' }, dir ? dir + '/' : '/'),
+    el('span', { class: 'size' }, `${rows.length} file${rows.length === 1 ? '' : 's'}`));
+  const kids = el('ul', { class: 'changes inner', hidden: '' });
+  const li = el('li', { class: 'grp' }, el('div', { class: 'grp-head' }, cb, btn), kids);
+  let built = false;
+  const sync = () => {
+    const n = rows.filter(r => r.i.selected).length;
+    cb.checked = n === rows.length; cb.indeterminate = n > 0 && n < rows.length;
+  };
+  S.syncs.push(sync);
+  const setOpen = (open, remember) => {
+    if (remember) S.open.set(dir, open);
+    kids.hidden = !open; btn.setAttribute('aria-expanded', String(open)); arrow.textContent = open ? '▾' : '▸';
+    if (open && !built) { rows.forEach(r => kids.append(changeRow(r, () => { sync(); refresh(); }))); built = true; }
+  };
+  btn.addEventListener('click', () => setOpen(kids.hidden, true));
+  cb.addEventListener('change', () => {
+    rows.forEach(r => { r.i.selected = cb.checked; if (r.cb) r.cb.checked = cb.checked; });
+    sync(); refresh();
+  });
+  sync();
+  setOpen(S.open.has(dir) ? S.open.get(dir) : autoOpen);
+  return li;
+}
+function changeRow(r, onToggle) {
+  const i = r.i;
   const cb = el('input', { type: 'checkbox', 'aria-label': 'Include ' + i.path });
-  cb.checked = i.selected;
-  cb.addEventListener('change', () => { i.selected = cb.checked; refresh(); });
-  const row = el('div', { class: 'change-row' }, cb, el('span', { class: 'st ' + s }, s), pathEl(i.path),
-    s === 'D' ? null : el('span', { class: 'size' }, fmtSize(i.size)));
+  cb.checked = i.selected; r.cb = cb;
+  cb.addEventListener('change', () => { i.selected = cb.checked; onToggle(); });
+  const sub = [];
+  if (i.eolOnly) sub.push('Line endings only');
+  const hasSecret = i.secrets && i.secrets.length;
+  if (hasSecret) sub.push('Possible secret: ' + i.secrets.join(', '));
+  const name = i.path.slice(i.path.lastIndexOf('/') + 1);
+  const row = el('div', { class: 'change-row' }, cb, el('span', { class: 'st ' + r.cat }, r.cat),
+    el('span', { class: 'path' }, name, sub.length ? el('span', { class: 'sub' + (hasSecret ? ' warn' : '') }, sub.join(' · ')) : null),
+    r.cat === 'D' ? null : el('span', { class: 'size' }, fmtSize(i.size)));
   const li = el('li', { class: 'change' }, row);
-  if (s === 'M') {
+  if (r.cat === 'M') {
     const dv = el('div', { class: 'diff', hidden: '' });
     const btn = el('button', { type: 'button', class: 'btn small ghost' }, 'Diff');
     btn.addEventListener('click', async () => {
@@ -845,93 +1091,173 @@ async function showDiff(i, dv) {
     dv.replaceChildren(...out);
   } catch (e) { note(e.message); }
 }
-$('more').onclick = () => { S.shown += PAGE; renderReview(); };
-$('sel-all').onclick = () => { S.plan.items.forEach(i => i.selected = true); S.plan.remoteOnly.forEach(d => d.selected = true); renderReview(); };
-$('sel-none').onclick = () => { S.plan.items.forEach(i => i.selected = false); S.plan.remoteOnly.forEach(d => d.selected = false); renderReview(); };
+function setShown(v) {
+  S.shownRows.forEach(r => { r.i.selected = v; if (r.cb) r.cb.checked = v; });
+  S.syncs.forEach(f => f()); refresh();
+}
+$('sel-all').onclick = () => setShown(true);
+$('sel-none').onclick = () => setShown(false);
+let qTimer = null;
+$('q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = $('q').value.trim().toLowerCase(); renderReview(); }, 150); });
 
 /* ---------- push ---------- */
-async function pool(items, n, fn) {
-  let k = 0, failed = false;
-  const run = async () => { while (k < items.length && !failed) { const idx = k++; try { await fn(items[idx], idx); } catch (e) { failed = true; throw e; } } };
-  await Promise.all(Array.from({ length: Math.min(n, items.length) }, run));
+async function pool(items, fn) {
+  let k = 0, active = 0, failed = null, done = 0;
+  S.conc = 4;
+  await new Promise(resolve => {
+    const pump = () => {
+      while (!failed && active < S.conc && k < items.length) {
+        const it = items[k++]; active++;
+        fn(it).then(() => {
+          done++;
+          if (S.rateHit) { S.conc = Math.max(2, S.conc - 2); S.rateHit = false; }
+          else if (done % 15 === 0 && S.conc < 8) S.conc++;
+        }, e => { failed = failed || e; }).finally(() => { active--; pump(); });
+      }
+      if (active === 0 && (failed || k >= items.length)) resolve();
+    };
+    pump();
+  });
+  if (failed) throw failed;
+}
+/* One tree request. Large batches time out on GitHub, so work in small chunks and shrink them when GitHub says so. */
+async function createTree(base, baseSha, entries) {
+  let size = 100, tree = baseSha;
+  for (let k = 0; k < entries.length;) {
+    const part = entries.slice(k, k + size);
+    try {
+      const body = { tree: part };
+      if (tree) body.base_tree = tree;
+      const t = await gh(`${base}/git/trees`, { method: 'POST', body, retries: 0 });
+      tree = t.sha; k += part.length;
+    } catch (e) {
+      if ((e.status >= 500 || /timed out|timeout/i.test(e.raw || e.message || '')) && size > 5) { size = Math.max(5, size >> 1); await sleep(500); continue; }
+      throw e;
+    }
+  }
+  return tree;
 }
 async function push() {
   const p = S.plan, base = `/repos/${p.owner}/${p.name}`;
-  const msg = $('msg').value.trim() || 'Update project files';
-  let todo = p.items.filter(i => i.status !== '=' && i.selected);
+  const sel = p.items.filter(i => i.status !== '=' && i.selected);
   const dels = delList().filter(d => d.selected);
+  const nA = sel.filter(i => i.status === 'A').length;
+  const msg = $('msg').value.trim() || autoMessage(nA, sel.length - nA, dels.length);
+  const todo = sel.slice();
   const tooBig = todo.filter(i => i.size > 100 * 1048576);
   if (tooBig.length) { banner('err', `${tooBig[0].path} is over 100 MB. Uncheck it to continue.`); return; }
   S.busy = true; $('primary').disabled = true;
+  keepAwake(true);
   try {
     let head = p.head, tree = p.baseTree, exists = p.branchExists, lastSha = null;
+    const prev = p.branchExists ? p.head : null;
+    let remoteDirs = p.remoteDirs;
     if (p.empty) {
       progress(0.02, 'Creating the first commit…');
       const first = todo.shift();
       const r = await gh(`${base}/contents/${encPath(first.path)}`, { method: 'PUT', body: { message: msg, content: toB64(await first.item.read()), branch: p.branch } });
       head = r.commit.sha; tree = r.commit.tree.sha; exists = true; lastSha = head;
+      const t0 = await gh(`${base}/git/trees/${tree}?recursive=1`);
+      remoteDirs = indexTree(tree, t0.tree).dirs;
     }
     if (todo.length || dels.length) {
+      if (!S.uploaded || S.uploadedRepo !== p.repo) { S.uploaded = new Set(); S.uploadedRepo = p.repo; }
+      const seen = new Set();
+      const need = todo.filter(it => !p.remoteShas.has(it.sha) && !S.uploaded.has(it.sha) && !seen.has(it.sha) && seen.add(it.sha));
+      const skipped = todo.length - need.length;
       let done = 0;
-      await pool(todo, 3, async it => {
+      if (need.length) await pool(need, async it => {
         const bytes = await it.item.read();
-        const r = await gh(`${base}/git/blobs`, { method: 'POST', body: { content: toB64(bytes), encoding: 'base64' } });
-        it.blob = r.sha;
-        done++; progress(0.05 + 0.8 * done / todo.length, `Uploading files… ${done} of ${todo.length}`);
+        await gh(`${base}/git/blobs`, { method: 'POST', body: { content: toB64(bytes), encoding: 'base64' } });
+        S.uploaded.add(it.sha); done++;
+        progress(0.05 + 0.75 * done / need.length, `Uploading files… ${done} of ${need.length}` + (skipped ? ` (${skipped} already on GitHub)` : ''));
       });
-      const entries = [
-        ...todo.map(it => ({ path: it.path, mode: it.mode, type: 'blob', sha: it.blob })),
-        ...dels.map(d => ({ path: d.path, mode: d.mode, type: 'blob', sha: null }))
-      ];
-      progress(0.88, 'Building the commit…');
-      // Large trees time out on GitHub, so add entries in small batches and shrink the batch on a timeout.
-      let size = 150;
-      for (let k = 0; k < entries.length;) {
-        const part = entries.slice(k, k + size);
-        try {
-          const t = await gh(`${base}/git/trees`, { method: 'POST', body: { base_tree: tree, tree: part }, retries: 0 });
-          tree = t.sha; k += part.length;
-          progress(0.88 + 0.07 * k / entries.length, `Building the commit… ${k} of ${entries.length}`);
-        } catch (e) {
-          if ((e.status >= 500 || /timed out|timeout/i.test(e.raw || e.message || '')) && size > 10) { size = Math.max(10, size >> 1); continue; }
-          throw e;
-        }
-      }
-      const c = await gh(`${base}/git/commits`, { method: 'POST', body: { message: msg, tree, parents: [head] } });
-      progress(0.95, 'Updating the branch…');
+      progress(0.85, 'Building the commit…');
+      let made = 0;
+      const root = await buildTrees(remoteDirs, todo.map(it => ({ path: it.path, mode: it.mode, sha: it.sha })), dels, async (baseSha, entries) => {
+        const sha = await createTree(base, baseSha, entries);
+        made++; progress(0.85 + 0.1 * Math.min(1, made / 50), `Building the commit… ${made} folder${made === 1 ? '' : 's'}`);
+        return sha;
+      });
+      const c = await gh(`${base}/git/commits`, { method: 'POST', body: { message: msg, tree: root, parents: [head] } });
+      progress(0.97, 'Updating the branch…');
       if (exists) await gh(`${base}/git/refs/heads/${encBranch(p.branch)}`, { method: 'PATCH', body: { sha: c.sha, force: false } });
       else await gh(`${base}/git/refs`, { method: 'POST', body: { ref: 'refs/heads/' + p.branch, sha: c.sha } });
       lastSha = c.sha;
     }
     const n = todo.length + dels.length + (p.empty ? 1 : 0);
     const url = `https://github.com/${p.repo}/commit/${lastSha}`;
-    addHistory({ repo: p.repo, branch: p.branch, sha: lastSha, msg, n, t: Date.now(), url });
+    const prUrl = p.branch !== p.defaultBranch ? `https://github.com/${p.repo}/compare/${encodeURIComponent(p.defaultBranch)}...${encBranch(p.branch)}?expand=1` : null;
+    addHistory({ repo: p.repo, branch: p.branch, sha: lastSha, prev, msg, n, t: Date.now(), url });
+    saveCfg(p.repo);
     progress(null);
-    banner('ok', el('span', null, `Pushed ${n} change${n === 1 ? '' : 's'} to ${p.branch}. `, el('a', { href: url, target: '_blank', rel: 'noopener' }, 'View commit ' + lastSha.slice(0, 7))));
+    banner('ok', el('span', null, `Pushed ${n} change${n === 1 ? '' : 's'} to ${p.branch}. `,
+      el('a', { href: url, target: '_blank', rel: 'noopener' }, 'View commit ' + lastSha.slice(0, 7)),
+      prUrl ? ' · ' : null, prUrl ? el('a', { href: prUrl, target: '_blank', rel: 'noopener' }, 'Open pull request') : null));
     S.plan = null; $('review').hidden = true;
   } catch (e) {
     progress(null);
-    banner('err', e.status === 422 && /not a fast forward/i.test(e.raw || '') ? 'The branch changed while pushing. Inspect again and retry.' : e.message || String(e));
-  } finally { S.busy = false; refresh(); }
+    const retryNote = S.uploaded && S.uploaded.size ? ' Files already uploaded are kept, so tapping Push again continues quickly.' : '';
+    banner('err', (e.status === 422 && /not a fast forward/i.test(e.raw || '') ? 'The branch changed while pushing. Inspect again and retry.' : e.message || String(e)) + retryNote);
+  } finally { keepAwake(false); S.busy = false; refresh(); }
 }
 $('primary').addEventListener('click', () => { banner(''); S.plan ? push() : inspect(); });
 
-/* ---------- history ---------- */
+/* ---------- history & undo ---------- */
 function loadHistory() { try { return JSON.parse(store.get('pushbox.history') || '[]'); } catch { return []; } }
-function addHistory(h) { store.set('pushbox.history', JSON.stringify([h, ...loadHistory()].slice(0, 8))); renderHistory(); }
+function saveHistory(h) { store.set('pushbox.history', JSON.stringify(h.slice(0, 8))); }
+function addHistory(h) { saveHistory([h, ...loadHistory()]); renderHistory(); }
 function renderHistory() {
   const h = loadHistory(), ul = $('history');
   $('hist-card').hidden = !h.length;
-  ul.replaceChildren(...h.map(x => el('li', null,
-    el('div', { class: 'h1' }, `${x.repo} · ${x.branch} · `, el('a', { href: x.url, target: '_blank', rel: 'noopener' }, x.sha.slice(0, 7))),
-    el('div', { class: 'h2' }, `${x.msg} · ${x.n} change${x.n === 1 ? '' : 's'} · ${new Date(x.t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`))));
+  ul.replaceChildren(...h.map(x => {
+    const undo = el('button', { type: 'button', class: 'btn small ghost' }, 'Undo this push');
+    undo.addEventListener('click', () => undoClick(x, undo));
+    return el('li', null,
+      el('div', { class: 'h1' }, `${x.repo} · ${x.branch} · `, el('a', { href: x.url, target: '_blank', rel: 'noopener' }, x.sha.slice(0, 7))),
+      el('div', { class: 'h2' }, `${x.msg} · ${x.n} change${x.n === 1 ? '' : 's'} · ${new Date(x.t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`),
+      x.undone ? el('div', { class: 'h2' }, 'Undone') : undo);
+  }));
+}
+let undoArmed = null;
+async function undoClick(h, btn) {
+  if (undoArmed !== h.sha) {
+    undoArmed = h.sha; btn.textContent = h.prev ? 'Tap again to move the branch back' : 'Tap again to delete this branch';
+    setTimeout(() => { if (undoArmed === h.sha) { undoArmed = null; btn.textContent = 'Undo this push'; } }, 5000);
+    return;
+  }
+  undoArmed = null;
+  S.token = $('token').value.trim();
+  if (!S.token) { banner('err', 'Paste your token above first.'); return; }
+  const [owner, name] = h.repo.split('/'), base = `/repos/${owner}/${name}`;
+  btn.disabled = true;
+  try {
+    const cur = await getHead(owner, name, h.branch);
+    if (cur !== h.sha) { banner('err', 'The branch has new commits since this push, so Pushbox will not undo it.'); btn.disabled = false; return; }
+    if (h.prev) await gh(`${base}/git/refs/heads/${encBranch(h.branch)}`, { method: 'PATCH', body: { sha: h.prev, force: true } });
+    else await gh(`${base}/git/refs/heads/${encBranch(h.branch)}`, { method: 'DELETE' });
+    saveHistory(loadHistory().map(x => x.sha === h.sha ? Object.assign(x, { undone: true }) : x));
+    renderHistory();
+    banner('ok', h.prev ? `Moved ${h.branch} back to ${h.prev.slice(0, 7)}.` : `Deleted the ${h.branch} branch.`);
+  } catch (e) { btn.disabled = false; banner('err', e.message || String(e)); }
 }
 
-/* Android WebView cannot pick folders, so offer ZIP and Files only. */
-if (/; wv\)/.test(navigator.userAgent)) {
-  $('pick-dir').hidden = true;
-  document.querySelector('.pick').style.gridTemplateColumns = '1fr 1fr';
-  $('pick-hint').textContent = 'To upload a folder, zip it first and pick the ZIP.';
+/* ---------- Android extras ---------- */
+if (A) {
+  $('pick-hint').textContent = 'Folder picks the whole folder. .git and node_modules are skipped.';
+  try {
+    const info = JSON.parse(A.info());
+    if (info.repo) fetch(`https://api.github.com/repos/${info.repo}/releases/tags/latest`)
+      .then(r => r.ok ? r.json() : null)
+      .then(rel => {
+        const m = rel && /Build (\d+)/.exec(rel.body || '');
+        const asset = rel && (rel.assets || [])[0];
+        if (m && asset && Number(m[1]) > info.versionCode) {
+          $('update').replaceChildren('A newer Pushbox is ready. ', el('a', { href: asset.browser_download_url, target: '_blank', rel: 'noopener' }, 'Download the update'));
+          $('update').hidden = false;
+        }
+      }).catch(() => {});
+  } catch {}
 }
 refresh();
 </script>
