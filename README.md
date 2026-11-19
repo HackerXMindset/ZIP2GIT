@@ -30,15 +30,12 @@ and see a notice when a newer build is available.
 
 ## Install updates over the old app
 
-Without a saved signing key, each build is signed with a new throwaway key, so Android makes you uninstall
-the old app first. To install over it instead, add three repository secrets
-(Settings, Secrets and variables, Actions):
+The signing key is stored in the repository as `app/pushbox-release.jks`, protected by a password.
+Add that password as a repository secret (Settings, Secrets and variables, Actions) named
+`KEYSTORE_PASSWORD`. Builds are then signed with your key and install over the previous version.
 
-- `KEYSTORE_B64`: your keystore file, base64 encoded
-- `KEYSTORE_PASSWORD`: its password
-- `KEY_ALIAS`: the key alias
-
-Keep using the same key from then on.
+If the secret is missing or wrong, the build still succeeds with a temporary key and a warning in the
+Actions log. In that case uninstall the old app before installing the new APK.
 
 ## Changing the app
 
