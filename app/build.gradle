@@ -12,7 +12,12 @@ android {
         targetSdk 34
         // GitHub Actions run number keeps rising, so each build can update the last one.
         versionCode Integer.parseInt(System.getenv('GITHUB_RUN_NUMBER') ?: '1')
-        versionName '1.0'
+        versionName '1.1'
+        buildConfigField 'String', 'REPO', "\"${System.getenv('GITHUB_REPOSITORY') ?: ''}\"".toString()
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     // The release key comes from the environment (GitHub Actions sets it). Without it,

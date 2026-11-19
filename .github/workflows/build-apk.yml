@@ -3,6 +3,7 @@ name: Build APK
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -50,6 +51,7 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
 
       - name: Publish to Releases
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -57,4 +59,4 @@ jobs:
           gh release create latest app/build/outputs/apk/release/app-release.apk \
             --target "$GITHUB_SHA" \
             --title "Pushbox (latest build)" \
-            --notes "Download app-release.apk and install it on Android. Built from ${GITHUB_SHA::7}."
+            --notes "Download app-release.apk and install it on Android. Build ${GITHUB_RUN_NUMBER}, from ${GITHUB_SHA::7}."
