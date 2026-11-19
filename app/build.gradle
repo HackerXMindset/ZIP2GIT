@@ -1,0 +1,47 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'app.pushbox'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'app.pushbox'
+        minSdk 26
+        targetSdk 34
+        // GitHub Actions run number keeps rising, so each build can update the last one.
+        versionCode (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+        versionName '1.0'
+    }
+
+    // The release key comes from the environment (GitHub Actions sets it). Without it,
+    // for example in Android Studio, the build falls back to the debug key.
+    def ksFile = System.getenv('KEYSTORE_FILE')
+    signingConfigs {
+        release {
+            if (ksFile) {
+                storeFile file(ksFile)
+                storePassword System.getenv('KEYSTORE_PASSWORD')
+                keyAlias System.getenv('KEY_ALIAS')
+                keyPassword System.getenv('KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig ksFile ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+}

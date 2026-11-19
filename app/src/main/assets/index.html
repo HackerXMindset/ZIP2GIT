@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1317">
+<title>Pushbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='jszip.min.js';document.head.appendChild(s)"></script>
+<style>
+/* Layout: one narrow column. Three real steps (repository, files, review) with a bar pinned to the bottom that always holds the next action. */
+:root {
+  --bg: #E8ECEF;
+  --surface: #F7F9FA;
+  --surface-2: #DCE3E8;
+  --fg: #111B24;
+  --muted: #53636F;
+  --line: #C5CED5;
+  --accent: #0B6E66;
+  --accent-fg: #FFFFFF;
+  --add: #1A7F37;
+  --mod: #8A5A00;
+  --del: #C62331;
+  --add-bg: #DDF3E3;
+  --del-bg: #FADCDF;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1317; --surface: #141D23; --surface-2: #1C2830; --fg: #E6EEF2; --muted: #8FA1AD; --line: #2A3944;
+    --accent: #3FD0BA; --accent-fg: #04201C; --add: #3FB950; --mod: #D29922; --del: #F85149;
+    --add-bg: #12301D; --del-bg: #3A1619; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1317; --surface: #141D23; --surface-2: #1C2830; --fg: #E6EEF2; --muted: #8FA1AD; --line: #2A3944;
+  --accent: #3FD0BA; --accent-fg: #04201C; --add: #3FB950; --mod: #D29922; --del: #F85149;
+  --add-bg: #12301D; --del-bg: #3A1619; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.wrap { max-width: 600px; margin: 0 auto; padding-block: 12px 220px; display: grid; gap: 16px; }
+h1, h2 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+button, input, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.top { display: flex; align-items: center; gap: 12px; padding-block: 8px 4px; }
+.mark { width: 36px; height: 36px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; flex: none; }
+.brand { font: 700 22px/1 var(--font-display); letter-spacing: -0.01em; }
+.tag-line { color: var(--muted); font-size: 13px; }
+.top .grow { flex: 1; min-width: 0; }
+.who { max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 12px/1 var(--font-mono); padding: 6px 10px; border-radius: 99px; background: var(--add-bg); color: var(--add); border: 1px solid var(--add); }
+.icon-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; cursor: pointer; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.card-head { display: flex; align-items: center; gap: 10px; }
+.step { font: 500 12px/1 var(--font-mono); width: 24px; height: 24px; border-radius: 6px; background: var(--fg); color: var(--bg); display: grid; place-items: center; flex: none; }
+.card-head h2 { font-size: 17px; }
+
+.field { display: grid; gap: 6px; min-width: 0; }
+.field > label, .lbl { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+input[type="text"], input[type="password"], input[type="search"] {
+  width: 100%; min-height: 46px; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); font-family: var(--font-mono); font-size: 14px;
+}
+input::placeholder { color: var(--muted); opacity: 0.8; }
+.inline { display: flex; gap: 8px; min-width: 0; }
+.inline > input { flex: 1; min-width: 0; }
+.row2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 480px) { .row2 { grid-template-columns: 1fr 1.6fr; } }
+
+.btn { min-height: 46px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); width: 100%; min-height: 52px; font-size: 16px; font-family: var(--font-display); }
+.btn.small { min-height: 34px; padding: 0 12px; font-size: 13px; }
+.btn.ghost { background: transparent; }
+
+.status { font-size: 13px; color: var(--muted); min-height: 20px; }
+.status.ok { color: var(--add); }
+.status.err { color: var(--del); }
+.hint { font-size: 12.5px; color: var(--muted); }
+
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+.check input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--accent); flex: none; }
+.check small { display: block; color: var(--muted); font-size: 12.5px; }
+
+.repo-panel { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); display: grid; }
+.repo-panel input { border: 0; border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; }
+.repo-list { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.repo-list li { padding: 0; }
+.repo-list button { width: 100%; text-align: left; background: none; border: 0; padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; align-items: center; border-bottom: 1px solid var(--line); }
+.repo-list button:hover { background: var(--surface-2); }
+.repo-list .nm { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+.pill { font-size: 11px; border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; color: var(--muted); flex: none; }
+
+.pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pick .btn { flex-direction: column; min-height: 72px; gap: 4px; font-size: 14px; }
+.pick svg { width: 22px; height: 22px; }
+.source { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; min-width: 0; }
+.source .nm { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
+.source .meta { color: var(--muted); font-size: 12.5px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: var(--font-mono); font-size: 13px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); }
+.chip b { font-weight: 500; }
+.chip.A b { color: var(--add); } .chip.M b { color: var(--mod); } .chip.D b { color: var(--del); }
+.commit-line { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+
+.changes { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); overflow: hidden; }
+.change { border-bottom: 1px solid var(--line); }
+.change:last-child { border-bottom: 0; }
+.change-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-width: 0; }
+.change-row input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+.st { font: 500 12px/1 var(--font-mono); width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; border: 1px solid currentColor; flex: none; }
+.st.A { color: var(--add); } .st.M { color: var(--mod); } .st.D { color: var(--del); }
+.path { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
+.path .dir { color: var(--muted); }
+.size { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.diff { margin: 0; padding: 8px 0; border-top: 1px solid var(--line); background: var(--surface); overflow-x: auto; font: 12px/1.5 var(--font-mono); }
+.diff .ln { display: block; padding: 0 10px; white-space: pre; min-width: max-content; }
+.diff .ln.p { background: var(--add-bg); } .diff .ln.m { background: var(--del-bg); }
+.diff .gap { display: block; padding: 2px 10px; color: var(--muted); }
+.diff .note { padding: 6px 10px; color: var(--muted); font-family: var(--font-body); font-size: 13px; }
+details.same > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 4px 0; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.history { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.history li { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--bg); min-width: 0; }
+.history .h1 { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
+.history .h2 { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding-top: 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.dock-in { max-width: 600px; margin: 0 auto; display: grid; gap: 8px; }
+.bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+.banner { font-size: 13.5px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); overflow-wrap: anywhere; }
+.banner.err { border-color: var(--del); color: var(--del); }
+.banner.ok { border-color: var(--add); color: var(--add); }
+.banner a { color: inherit; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="mark" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5"/><path d="M7 9l5-5 5 5"/><path d="M4 14v5h16v-5"/></svg>
+    </div>
+    <div class="grow">
+      <div class="brand">Pushbox</div>
+      <div class="tag-line">Push to GitHub, no Git</div>
+    </div>
+    <span class="who" id="who" hidden></span>
+    <button class="icon-btn" id="theme" type="button" aria-label="Switch theme">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </header>
+
+  <section class="card" aria-labelledby="h-repo">
+    <div class="card-head"><span class="step">1</span><h2 id="h-repo">Repository</h2></div>
+    <div class="inline" id="repo-pick-row" hidden>
+      <button class="btn" id="repo-toggle" type="button" style="flex:1;justify-content:space-between" aria-expanded="false"><span id="repo-toggle-label">Select from your repos</span><span aria-hidden="true">▾</span></button>
+    </div>
+    <div class="field">
+      <label for="repo">Repository</label>
+      <input id="repo" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="owner/name or https://github.com/owner/name">
+    </div>
+    <div class="field">
+      <label for="token">Personal access token</label>
+      <div class="inline">
+        <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ghp_… or github_pat_…">
+        <button class="icon-btn" id="eye" type="button" aria-label="Show token" aria-pressed="false" style="width:46px;height:46px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <div class="hint">Needs <b>repo</b> scope (classic) or <b>Contents: read and write</b> (fine-grained). <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">Create a token</a>. It is sent only to api.github.com.</div>
+    </div>
+    <label class="check"><input type="checkbox" id="remember"><span>Remember token on this device<small>Stored in this browser only.</small></span></label>
+    <button class="btn" id="btn-test" type="button">Test token and load my repos</button>
+    <div class="status" id="auth-status" role="status"></div>
+    <div class="repo-panel" id="repo-panel" hidden>
+      <input id="repo-filter" type="search" placeholder="Filter repositories" autocomplete="off" aria-label="Filter repositories">
+      <ul class="repo-list" id="repo-list"></ul>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="branch">Branch</label>
+        <input id="branch" type="text" list="branches" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="default branch">
+        <datalist id="branches"></datalist>
+      </div>
+      <div class="field">
+        <label for="msg">Commit message</label>
+        <input id="msg" type="text" autocomplete="off" value="Update project files">
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="h-files">
+    <div class="card-head"><span class="step">2</span><h2 id="h-files">Files</h2></div>
+    <div class="pick">
+      <button class="btn" id="pick-zip" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M12 10v6M10 12h4"/></svg>ZIP</button>
+      <button class="btn" id="pick-dir" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Folder</button>
+      <button class="btn" id="pick-files" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>Files</button>
+    </div>
+    <input type="file" id="in-zip" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+    <input type="file" id="in-dir" webkitdirectory multiple hidden>
+    <input type="file" id="in-files" multiple hidden>
+    <div class="hint" id="pick-hint">If your browser can't pick folders, zip the folder first.</div>
+    <div class="source" id="source" hidden>
+      <div class="nm" id="source-name"></div>
+      <div class="meta" id="source-meta"></div>
+      <button class="btn small ghost" id="clear" type="button" aria-label="Remove selection">Clear</button>
+    </div>
+    <div id="file-opts" hidden style="display:grid;gap:14px">
+      <label class="check" id="strip-row" hidden><input type="checkbox" id="strip" checked><span>Remove the top folder <code id="root-name"></code><small>Puts the folder's contents at the repository root.</small></span></label>
+      <div class="field">
+        <label for="prefix">Upload into subfolder (optional)</label>
+        <input id="prefix" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. docs/site">
+      </div>
+      <label class="check"><input type="checkbox" id="smart" checked><span>Smart file filter<small>Skips node_modules, build folders, .gradle, .idea, caches and OS junk.</small></span></label>
+      <label class="check"><input type="checkbox" id="mirror"><span>Mirror sync (exact match)<small>Deletes repository files that aren't in this upload.</small></span></label>
+      <label class="check" id="meta-row"><input type="checkbox" id="meta" checked><span>Preserve metadata<small>Keeps README, LICENSE, .github/ and .gitignore even if missing from the upload.</small></span></label>
+    </div>
+  </section>
+
+  <section class="card" id="review" aria-labelledby="h-review" hidden>
+    <div class="card-head"><span class="step">3</span><h2 id="h-review">Review changes</h2></div>
+    <div class="commit-line" id="base-line"></div>
+    <div class="chips" id="chips"></div>
+    <div class="banner" id="warn" hidden></div>
+    <div class="toolbar" id="toolbar">
+      <button class="btn small" id="sel-all" type="button">Select all</button>
+      <button class="btn small" id="sel-none" type="button">Select none</button>
+    </div>
+    <ul class="changes" id="changes"></ul>
+    <button class="btn small" id="more" type="button" hidden>Show more</button>
+    <details class="same" id="same" hidden><summary id="same-sum"></summary><ul class="changes" id="same-list"></ul></details>
+  </section>
+
+  <section class="card" id="hist-card" hidden aria-labelledby="h-hist">
+    <div class="card-head"><h2 id="h-hist">Recent pushes</h2></div>
+    <ul class="history" id="history"></ul>
+  </section>
+</div>
+
+<div class="dock">
+  <div class="dock-in">
+    <div class="banner" id="banner" role="status" hidden></div>
+    <div class="bar" id="bar" hidden><i id="bar-i"></i></div>
+    <button class="btn primary" id="primary" type="button" disabled>Inspect changes</button>
+    <div class="hint" id="primary-hint" style="text-align:center"></div>
+  </div>
+</div>
+
+<script>
+/*PURE-START*/
+function parseRepo(s) {
+  s = (s || '').trim();
+  if (!s) return null;
+  let m;
+  if ((m = s.match(/^(?:https?:\/\/|git@)?(?:www\.)?github\.com[\/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:[\/#?].*)?$/i))) return { owner: m[1], name: m[2] };
+  if ((m = s.match(/^([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/))) return { owner: m[1], name: m[2] };
+  return null;
+}
+function cleanPath(p) {
+  const out = [];
+  for (const seg of String(p).replace(/\\/g, '/').split('/')) {
+    if (!seg || seg === '.') continue;
+    if (seg === '..') return null;
+    out.push(seg);
+  }
+  return out.length ? out.join('/') : null;
+}
+function isJunk(path) {
+  const segs = path.split('/');
+  const base = segs[segs.length - 1];
+  return segs.includes('.git') || segs.includes('__MACOSX') || base === '.DS_Store' || base === 'Thumbs.db';
+}
+function commonRoot(paths) {
+  if (!paths.length) return null;
+  if (!paths.every(p => p.includes('/'))) return null;
+  const first = paths[0].split('/')[0];
+  return paths.every(p => p.split('/')[0] === first) ? first : null;
+}
+function finalPaths(raw, strip, root, prefix) {
+  const pre = prefix ? cleanPath(prefix) : null;
+  const out = new Map();
+  for (const r of raw) {
+    let p = r.path;
+    if (strip && root && p.startsWith(root + '/')) p = p.slice(root.length + 1);
+    p = cleanPath(p);
+    if (!p) continue;
+    if (pre) p = pre + '/' + p;
+    out.set(p, r);
+  }
+  return out;
+}
+function smartIgnored(path) {
+  const segs = path.split('/'), base = segs[segs.length - 1], dirs = segs.slice(0, -1);
+  if (dirs.some(d => ['node_modules', '.gradle', '.idea', '.cxx', '__pycache__', '.venv', 'venv', 'build', '.dart_tool', 'Pods'].includes(d))) return true;
+  return /\.(pyc|iml|class|apk|aab)$/i.test(base) || base === 'local.properties' || base === 'Thumbs.db' || base === '.DS_Store';
+}
+function isMeta(path, prefix) {
+  let p = path;
+  const pre = prefix ? cleanPath(prefix) : null;
+  if (pre && p.startsWith(pre + '/')) p = p.slice(pre.length + 1);
+  return p.startsWith('.github/') || /^(README|LICENSE|LICENCE|CHANGELOG)(\.[\w-]+)?$/i.test(p) || p === '.gitignore';
+}
+function sha1hex(bytes) {
+  const l = bytes.length, nb = ((l + 8) >> 6) + 1, w = new Uint32Array(nb * 16);
+  for (let i = 0; i < l; i++) w[i >> 2] |= bytes[i] << (24 - (i % 4) * 8);
+  w[l >> 2] |= 0x80 << (24 - (l % 4) * 8);
+  w[nb * 16 - 1] = (l * 8) >>> 0;
+  w[nb * 16 - 2] = Math.floor(l / 0x20000000);
+  let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0;
+  const W = new Uint32Array(80);
+  for (let b = 0; b < nb; b++) {
+    for (let t = 0; t < 16; t++) W[t] = w[b * 16 + t];
+    for (let t = 16; t < 80; t++) { const x = W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16]; W[t] = (x << 1) | (x >>> 31); }
+    let a = h0, bb = h1, c = h2, d = h3, e = h4;
+    for (let t = 0; t < 80; t++) {
+      let f, k;
+      if (t < 20) { f = (bb & c) | (~bb & d); k = 0x5A827999; }
+      else if (t < 40) { f = bb ^ c ^ d; k = 0x6ED9EBA1; }
+      else if (t < 60) { f = (bb & c) | (bb & d) | (c & d); k = 0x8F1BBCDC; }
+      else { f = bb ^ c ^ d; k = 0xCA62C1D6; }
+      const tmp = (((a << 5) | (a >>> 27)) + f + e + k + W[t]) >>> 0;
+      e = d; d = c; c = ((bb << 30) | (bb >>> 2)) >>> 0; bb = a; a = tmp;
+    }
+    h0 = (h0 + a) >>> 0; h1 = (h1 + bb) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;
+  }
+  return [h0, h1, h2, h3, h4].map(x => x.toString(16).padStart(8, '0')).join('');
+}
+function blobBytes(bytes) {
+  const head = new TextEncoder().encode('blob ' + bytes.length + '\0');
+  const buf = new Uint8Array(head.length + bytes.length);
+  buf.set(head); buf.set(bytes, head.length);
+  return buf;
+}
+function lineDiff(a, b) {
+  let s = 0;
+  while (s < a.length && s < b.length && a[s] === b[s]) s++;
+  let ea = a.length, eb = b.length;
+  while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) { ea--; eb--; }
+  const A = a.slice(s, ea), B = b.slice(s, eb), n = A.length, m = B.length;
+  if (n * m > 4e6) return null;
+  const w = m + 1, t = new Uint32Array((n + 1) * w);
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    t[i * w + j] = A[i] === B[j] ? t[(i + 1) * w + j + 1] + 1 : Math.max(t[(i + 1) * w + j], t[i * w + j + 1]);
+  const out = [];
+  for (let i = 0; i < s; i++) out.push([' ', a[i]]);
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (A[i] === B[j]) { out.push([' ', A[i]]); i++; j++; }
+    else if (t[(i + 1) * w + j] >= t[i * w + j + 1]) out.push(['-', A[i++]]);
+    else out.push(['+', B[j++]]);
+  }
+  while (i < n) out.push(['-', A[i++]]);
+  while (j < m) out.push(['+', B[j++]]);
+  for (let k = ea; k < a.length; k++) out.push([' ', a[k]]);
+  return out;
+}
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1048576).toFixed(1) + ' MB';
+}
+function toB64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function encPath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+/*PURE-END*/
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} }
+};
+const S = { raw: [], sourceName: '', plan: null, busy: false, shown: 0, token: '' };
+const PAGE = 300;
+
+/* ---------- theme ---------- */
+(function () {
+  const t = store.get('pushbox.theme');
+  if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  $('theme').addEventListener('click', () => {
+    const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    store.set('pushbox.theme', next);
+  });
+})();
+
+/* ---------- GitHub API ---------- */
+class GhError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
+function friendly(status, msg) {
+  if (status === 401) return 'GitHub rejected the token. Check that it is correct and has not expired.';
+  if (status === 404) return 'Not found. Check the repository name, and that the token can access it.';
+  if (status === 403) return msg || 'GitHub refused the request. The token may lack write access to this repository.';
+  return msg || ('GitHub returned status ' + status);
+}
+async function gh(path, opt = {}) {
+  const url = 'https://api.github.com' + path;
+  for (let attempt = 0; ; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, {
+        method: opt.method || 'GET',
+        headers: Object.assign({
+          'Accept': 'application/vnd.github+json',
+          'Authorization': 'Bearer ' + S.token,
+          'X-GitHub-Api-Version': '2022-11-28'
+        }, opt.body ? { 'Content-Type': 'application/json' } : {}),
+        body: opt.body ? JSON.stringify(opt.body) : undefined
+      });
+    } catch {
+      if (attempt < 2) { await sleep(800 * (attempt + 1)); continue; }
+      throw new GhError(0, 'Could not reach GitHub. Check your internet connection.');
+    }
+    if (res.ok) return res.status === 204 ? null : res.json();
+    let j = null; try { j = await res.json(); } catch {}
+    const msg = (j && j.message) || res.statusText;
+    const retry = res.status >= 500 || res.status === 429 || (res.status === 403 && /rate limit|abuse|secondary/i.test(msg));
+    if (retry && attempt < 3) {
+      const ra = Number(res.headers.get('retry-after'));
+      await sleep(Math.min(ra ? ra * 1000 : 1500 * (attempt + 1), 30000));
+      continue;
+    }
+    const e = new GhError(res.status, friendly(res.status, msg));
+    e.raw = msg;
+    throw e;
+  }
+}
+const encBranch = b => b.split('/').map(encodeURIComponent).join('/');
+
+/* ---------- messages ---------- */
+function banner(kind, html) {
+  const b = $('banner');
+  if (!html) { b.hidden = true; return; }
+  b.className = 'banner ' + (kind || '');
+  b.replaceChildren();
+  if (typeof html === 'string') b.textContent = html; else b.append(html);
+  b.hidden = false;
+}
+function progress(frac, label) {
+  const bar = $('bar');
+  if (frac == null) { bar.hidden = true; return; }
+  bar.hidden = false;
+  $('bar-i').style.width = Math.round(frac * 100) + '%';
+  if (label) banner('', label);
+}
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (attrs || {})) {
+    if (k === 'class') e.className = attrs[k];
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]);
+    else e.setAttribute(k, attrs[k]);
+  }
+  for (const c of kids) if (c != null) e.append(c);
+  return e;
+}
+
+/* ---------- inputs & state ---------- */
+function invalidate() {
+  S.plan = null;
+  $('review').hidden = true;
+  refresh();
+}
+function refresh() {
+  const b = $('primary'), hint = $('primary-hint');
+  if (S.busy) { b.disabled = true; return; }
+  if (S.plan) {
+    const n = selectedCount();
+    b.textContent = n ? `Push ${n} change${n > 1 ? 's' : ''} to ${S.plan.branch}` : 'Nothing to push';
+    b.disabled = !n;
+    hint.textContent = n ? '' : 'Select at least one change.';
+    return;
+  }
+  b.textContent = 'Inspect changes';
+  const miss = [];
+  if (!parseRepo($('repo').value)) miss.push('a repository');
+  if (!$('token').value.trim()) miss.push('a token');
+  if (!S.raw.length) miss.push('files');
+  b.disabled = miss.length > 0;
+  hint.textContent = miss.length ? 'Add ' + miss.join(', ').replace(/, ([^,]*)$/, ' and $1') + ' to continue.' : 'Compares your files with the repository. Nothing is uploaded yet.';
+}
+['repo', 'branch', 'prefix'].forEach(id => $(id).addEventListener('input', invalidate));
+$('token').addEventListener('input', () => { S.token = $('token').value.trim(); invalidate(); });
+$('msg').addEventListener('input', refresh);
+$('strip').addEventListener('change', invalidate);
+$('smart').addEventListener('change', invalidate);
+$('mirror').addEventListener('change', () => { $('meta-row').style.opacity = $('mirror').checked ? 1 : 0.5; if (S.plan) { S.plan.remoteOnly.forEach(d => d.selected = true); renderReview(); } });
+$('meta').addEventListener('change', () => { if (S.plan) renderReview(); });
+$('meta-row').style.opacity = 0.5;
+$('repo-toggle').addEventListener('click', () => {
+  const open = $('repo-panel').hidden;
+  $('repo-panel').hidden = !open;
+  $('repo-toggle').setAttribute('aria-expanded', String(open));
+});
+$('eye').addEventListener('click', () => {
+  const t = $('token'), show = t.type === 'password';
+  t.type = show ? 'text' : 'password';
+  $('eye').setAttribute('aria-pressed', String(show));
+  $('eye').setAttribute('aria-label', show ? 'Hide token' : 'Show token');
+});
+
+/* ---------- saved settings ---------- */
+(function restore() {
+  const r = store.get('pushbox.repo'); if (r) $('repo').value = r;
+  const b = store.get('pushbox.branch'); if (b) $('branch').value = b;
+  const m = store.get('pushbox.msg'); if (m) $('msg').value = m;
+  const t = store.get('pushbox.token');
+  if (t) { $('token').value = t; S.token = t; $('remember').checked = true; }
+  renderHistory();
+})();
+
+/* ---------- token test & repo list ---------- */
+let allRepos = [];
+$('btn-test').addEventListener('click', async () => {
+  const st = $('auth-status');
+  S.token = $('token').value.trim();
+  if (!S.token) { st.className = 'status err'; st.textContent = 'Paste a token first.'; return; }
+  st.className = 'status'; st.textContent = 'Checking token…';
+  $('btn-test').disabled = true;
+  try {
+    const me = await gh('/user');
+    allRepos = [];
+    for (let page = 1; page <= 5; page++) {
+      const part = await gh(`/user/repos?per_page=100&sort=pushed&page=${page}&affiliation=owner,collaborator,organization_member`);
+      allRepos.push(...part);
+      if (part.length < 100) break;
+    }
+    st.className = 'status ok';
+    st.textContent = `Signed in as ${me.login}. ${allRepos.length} repositor${allRepos.length === 1 ? 'y' : 'ies'} found.`;
+    $('repo-filter').value = '';
+    renderRepos();
+    $('repo-panel').hidden = !allRepos.length;
+    $('repo-pick-row').hidden = !allRepos.length;
+    $('repo-toggle-label').textContent = `Select from your repos (${allRepos.length})`;
+    $('repo-toggle').setAttribute('aria-expanded', String(!!allRepos.length));
+    $('who').textContent = '@' + me.login; $('who').hidden = false;
+    saveToken();
+  } catch (e) {
+    st.className = 'status err'; st.textContent = e.message;
+    $('repo-panel').hidden = true; $('repo-pick-row').hidden = true; $('who').hidden = true;
+  } finally { $('btn-test').disabled = false; }
+});
+function renderRepos() {
+  const q = $('repo-filter').value.trim().toLowerCase();
+  const list = $('repo-list'); list.replaceChildren();
+  allRepos.filter(r => !q || r.full_name.toLowerCase().includes(q)).slice(0, 100).forEach(r => {
+    list.append(el('li', null, el('button', { type: 'button', onclick: () => pickRepo(r) },
+      el('span', { class: 'nm' }, r.full_name),
+      el('span', { class: 'pill' }, r.private ? 'private' : 'public'))));
+  });
+  if (!list.children.length) list.append(el('li', { class: 'hint', style: 'padding:10px 12px' }, 'No matches.'));
+}
+$('repo-filter').addEventListener('input', renderRepos);
+async function pickRepo(r) {
+  $('repo').value = r.full_name;
+  $('branch').value = r.default_branch || '';
+  $('repo-panel').hidden = true; $('repo-toggle').setAttribute('aria-expanded', 'false');
+  invalidate();
+  try {
+    const br = await gh(`/repos/${r.full_name}/branches?per_page=100`);
+    $('branches').replaceChildren(...br.map(b => el('option', { value: b.name })));
+  } catch {}
+}
+function saveToken() {
+  if ($('remember').checked) store.set('pushbox.token', S.token); else store.del('pushbox.token');
+}
+$('remember').addEventListener('change', saveToken);
+
+/* ---------- file picking ---------- */
+$('pick-zip').onclick = () => { $('in-zip').value = ''; $('in-zip').click(); };
+$('pick-dir').onclick = () => { $('in-dir').value = ''; $('in-dir').click(); };
+$('pick-files').onclick = () => { $('in-files').value = ''; $('in-files').click(); };
+
+function setSource(name, raw, ignored) {
+  S.raw = raw; S.sourceName = name; S.ignored = ignored || 0;
+  const root = commonRoot(raw.map(r => r.path));
+  S.root = root;
+  $('strip-row').hidden = !root;
+  if (root) $('root-name').textContent = root + '/';
+  const total = raw.reduce((a, r) => a + (r.size || 0), 0);
+  $('source-name').textContent = name;
+  $('source-meta').textContent = `${raw.length} file${raw.length === 1 ? '' : 's'} · ${fmtSize(total)}` + (ignored ? ` · ${ignored} skipped` : '');
+  $('source').hidden = !raw.length;
+  $('file-opts').hidden = !raw.length;
+  invalidate();
+}
+$('clear').onclick = () => setSource('', [], 0);
+
+$('in-zip').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (typeof JSZip === 'undefined') { banner('err', 'The ZIP reader could not load. Connect to the internet and reload this page.'); return; }
+  banner('', 'Reading ZIP…');
+  try {
+    const zip = await JSZip.loadAsync(f);
+    const raw = []; let ignored = 0;
+    zip.forEach((rel, entry) => {
+      if (entry.dir) return;
+      const p = cleanPath(rel);
+      if (!p || isJunk(p)) { ignored++; return; }
+      raw.push({ path: p, size: entry._data && entry._data.uncompressedSize || 0, read: () => entry.async('uint8array') });
+    });
+    banner('');
+    if (!raw.length) { banner('err', 'That ZIP has no files in it.'); return; }
+    setSource(f.name, raw, ignored);
+  } catch (err) { banner('err', 'Could not open that ZIP. It may be damaged or password protected.'); }
+});
+function fromFileList(list, useRel) {
+  const raw = []; let ignored = 0;
+  for (const f of list) {
+    const p = cleanPath(useRel && f.webkitRelativePath ? f.webkitRelativePath : f.name);
+    if (!p || isJunk(p)) { ignored++; continue; }
+    raw.push({ path: p, size: f.size, read: async () => new Uint8Array(await f.arrayBuffer()) });
+  }
+  return { raw, ignored };
+}
+$('in-dir').addEventListener('change', e => {
+  const { raw, ignored } = fromFileList(e.target.files, true);
+  if (!raw.length) return;
+  const root = commonRoot(raw.map(r => r.path));
+  setSource(root ? root + '/' : 'Selected files', raw, ignored);
+});
+$('in-files').addEventListener('change', e => {
+  const { raw, ignored } = fromFileList(e.target.files, false);
+  if (!raw.length) return;
+  setSource(raw.length === 1 ? raw[0].path : `${raw.length} files`, raw, ignored);
+});
+
+/* ---------- inspect ---------- */
+const mirrorOn = () => $('mirror').checked;
+function localMap() {
+  const all = finalPaths(S.raw, $('strip').checked && !$('strip-row').hidden, S.root, $('prefix').value);
+  S.filtered = 0;
+  if ($('smart').checked) for (const p of [...all.keys()]) if (smartIgnored(p)) { all.delete(p); S.filtered++; }
+  return all;
+}
+async function getHead(o, n, br) {
+  try { return (await gh(`/repos/${o}/${n}/git/ref/heads/${encBranch(br)}`)).object.sha; }
+  catch (e) {
+    if (e.status === 404) return null;
+    if (e.status === 409) return 'EMPTY';
+    throw e;
+  }
+}
+async function gitSha(bytes) {
+  const buf = blobBytes(bytes);
+  if (window.crypto && crypto.subtle) {
+    try {
+      const d = new Uint8Array(await crypto.subtle.digest('SHA-1', buf));
+      return Array.from(d, x => x.toString(16).padStart(2, '0')).join('');
+    } catch {}
+  }
+  return sha1hex(buf);
+}
+async function inspect() {
+  const rp = parseRepo($('repo').value);
+  if (!rp) { banner('err', 'Enter the repository as owner/name or a GitHub URL.'); return; }
+  S.token = $('token').value.trim();
+  const { owner, name } = rp;
+  S.busy = true; $('primary').disabled = true;
+  try {
+    banner('', 'Contacting GitHub…'); progress(0.02);
+    const info = await gh(`/repos/${owner}/${name}`);
+    if (info.permissions && info.permissions.push === false) throw new GhError(403, 'This token can read the repository but not write to it.');
+    const branch = $('branch').value.trim() || info.default_branch;
+    let head = await getHead(owner, name, branch);
+    let branchExists = head !== null && head !== 'EMPTY';
+    let empty = head === 'EMPTY';
+    if (head === null) {
+      head = await getHead(owner, name, info.default_branch);
+      if (head === 'EMPTY') { empty = true; head = null; }
+      else if (head === null) throw new GhError(404, 'Could not find the default branch of this repository.');
+    }
+    const remote = new Map(); let truncated = false, baseTree = null;
+    if (!empty) {
+      progress(0.08, 'Reading the repository…');
+      const c = await gh(`/repos/${owner}/${name}/git/commits/${head}`);
+      baseTree = c.tree.sha;
+      const t = await gh(`/repos/${owner}/${name}/git/trees/${baseTree}?recursive=1`);
+      truncated = !!t.truncated;
+      for (const e of t.tree) if (e.type === 'blob') remote.set(e.path, { sha: e.sha, mode: e.mode });
+    }
+    const locals = localMap(), items = [];
+    let i = 0;
+    for (const [path, r] of locals) {
+      const bytes = await r.read();
+      const sha = await gitSha(bytes);
+      const rem = remote.get(path);
+      items.push({
+        path, item: r, sha, size: bytes.length,
+        isText: !bytes.subarray(0, 8000).includes(0),
+        remoteSha: rem ? rem.sha : null,
+        mode: rem && rem.mode !== '120000' ? rem.mode : '100644',
+        status: !rem ? 'A' : rem.sha === sha ? '=' : 'M',
+        selected: true
+      });
+      if (++i % 10 === 0) { progress(0.1 + 0.85 * i / locals.size, `Comparing files… ${i} of ${locals.size}`); await sleep(0); }
+    }
+    const remoteOnly = [];
+    for (const [path, rem] of remote) if (!locals.has(path)) remoteOnly.push({ path, sha: rem.sha, mode: rem.mode, selected: true });
+    items.sort((a, b) => a.path.localeCompare(b.path));
+    remoteOnly.sort((a, b) => a.path.localeCompare(b.path));
+    S.plan = { filtered: S.filtered, owner, name, repo: info.full_name, branch, head, baseTree, branchExists, empty, truncated, items, remoteOnly, defaultBranch: info.default_branch };
+    S.shown = PAGE;
+    store.set('pushbox.repo', info.full_name); store.set('pushbox.branch', $('branch').value.trim()); store.set('pushbox.msg', $('msg').value);
+    banner(''); progress(null);
+    renderReview();
+    $('review').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    progress(null); banner('err', e.message || String(e));
+  } finally { S.busy = false; refresh(); }
+}
+
+/* ---------- review ---------- */
+function delList() {
+  if (!S.plan || !mirrorOn()) return [];
+  const pre = cleanPath($('prefix').value);
+  const keepMeta = $('meta').checked;
+  return S.plan.remoteOnly.filter(d => (!pre || d.path.startsWith(pre + '/')) && !(keepMeta && isMeta(d.path, pre)));
+}
+function selectedCount() {
+  if (!S.plan) return 0;
+  return S.plan.items.filter(i => i.status !== '=' && i.selected).length + delList().filter(d => d.selected).length;
+}
+function pathEl(p) {
+  const k = p.lastIndexOf('/');
+  return el('span', { class: 'path' }, k >= 0 ? el('span', { class: 'dir' }, p.slice(0, k + 1)) : null, p.slice(k + 1));
+}
+function renderReview() {
+  const p = S.plan; if (!p) return;
+  $('review').hidden = false;
+  const a = p.items.filter(i => i.status === 'A'), m = p.items.filter(i => i.status === 'M'), same = p.items.filter(i => i.status === '='), d = delList();
+  $('base-line').textContent = p.empty
+    ? `${p.repo} is empty. The first file creates the ${p.branch} branch.`
+    : `${p.repo} · ${p.branchExists ? p.branch + ' @ ' + p.head.slice(0, 7) : 'new branch ' + p.branch + ' from ' + p.defaultBranch + ' @ ' + p.head.slice(0, 7)}`;
+  const chips = $('chips'); chips.replaceChildren(
+    el('span', { class: 'chip A' }, el('b', null, a.length), ' added'),
+    el('span', { class: 'chip M' }, el('b', null, m.length), ' changed'),
+    el('span', { class: 'chip D' }, el('b', null, d.length), ' deleted'),
+    el('span', { class: 'chip' }, el('b', null, same.length), ' same'),
+    p.filtered ? el('span', { class: 'chip' }, el('b', null, p.filtered), ' filtered out') : '');
+  const w = $('warn'), warns = [];
+  if (p.items.some(i => i.status !== '=' && i.path.startsWith('.github/workflows/')))
+    warns.push("GitHub Actions workflows (.github/workflows) are included. Your token needs the 'workflow' scope (classic) or Workflows: read and write (fine-grained), or GitHub will reject the push.");
+  if (p.truncated) warns.push('This repository is very large, so GitHub returned a partial file list. Some files shown as added may already exist.');
+  if (d.length) warns.push(`${d.length} file${d.length > 1 ? 's' : ''} will be deleted from the repository. Uncheck any you want to keep.`);
+  const big = p.items.filter(i => i.status !== '=' && i.size > 100 * 1048576);
+  if (big.length) warns.push(`${big.length} file${big.length > 1 ? 's are' : ' is'} over 100 MB and cannot be pushed with this method.`);
+  w.hidden = !warns.length; w.className = 'banner'; w.textContent = warns.join(' ');
+  const rows = [
+    ...a.map(i => ({ s: 'A', i })), ...m.map(i => ({ s: 'M', i })), ...d.map(i => ({ s: 'D', i }))
+  ];
+  const ul = $('changes'); ul.replaceChildren();
+  rows.slice(0, S.shown).forEach(r => ul.append(changeRow(r.s, r.i)));
+  const left = rows.length - S.shown;
+  $('more').hidden = left <= 0;
+  $('more').textContent = `Show ${Math.min(left, PAGE)} more (${left} hidden)`;
+  $('toolbar').hidden = !rows.length;
+  if (!rows.length) ul.append(el('li', { class: 'hint', style: 'padding:12px' }, 'Everything in your upload already matches the repository. Nothing to push.'));
+  $('same').hidden = !same.length;
+  $('same-sum').textContent = `${same.length} unchanged file${same.length === 1 ? '' : 's'}`;
+  const sl = $('same-list'); sl.replaceChildren();
+  if (same.length) $('same').ontoggle = () => {
+    if ($('same').open && !sl.children.length) same.slice(0, 500).forEach(i => sl.append(el('li', { class: 'change' }, el('div', { class: 'change-row' }, el('span', { class: 'st', style: 'color:var(--muted)' }, '='), pathEl(i.path), el('span', { class: 'size' }, fmtSize(i.size))))));
+  };
+  refresh();
+}
+function changeRow(s, i) {
+  const cb = el('input', { type: 'checkbox', 'aria-label': 'Include ' + i.path });
+  cb.checked = i.selected;
+  cb.addEventListener('change', () => { i.selected = cb.checked; refresh(); });
+  const row = el('div', { class: 'change-row' }, cb, el('span', { class: 'st ' + s }, s), pathEl(i.path),
+    s === 'D' ? null : el('span', { class: 'size' }, fmtSize(i.size)));
+  const li = el('li', { class: 'change' }, row);
+  if (s === 'M') {
+    const dv = el('div', { class: 'diff', hidden: '' });
+    const btn = el('button', { type: 'button', class: 'btn small ghost' }, 'Diff');
+    btn.addEventListener('click', async () => {
+      if (!dv.hidden) { dv.hidden = true; btn.textContent = 'Diff'; return; }
+      dv.hidden = false; btn.textContent = 'Hide';
+      if (!dv.dataset.done) { await showDiff(i, dv); dv.dataset.done = '1'; }
+    });
+    row.append(btn); li.append(dv);
+  }
+  return li;
+}
+async function showDiff(i, dv) {
+  const note = t => dv.replaceChildren(el('div', { class: 'note' }, t));
+  if (!i.isText) return note('Binary file changed.');
+  if (i.size > 300000) return note('File is too large to show a diff.');
+  note('Loading…');
+  try {
+    const p = S.plan;
+    const blob = await gh(`/repos/${p.owner}/${p.name}/git/blobs/${i.remoteSha}`);
+    const bin = atob(blob.content.replace(/\n/g, ''));
+    const rb = Uint8Array.from(bin, c => c.charCodeAt(0));
+    const dec = new TextDecoder();
+    const oldL = dec.decode(rb).split('\n'), newL = dec.decode(await i.item.read()).split('\n');
+    const d = lineDiff(oldL, newL);
+    if (!d) return note('Too many differences to show.');
+    const keep = new Array(d.length).fill(false);
+    d.forEach((x, k) => { if (x[0] !== ' ') for (let j = Math.max(0, k - 3); j <= Math.min(d.length - 1, k + 3); j++) keep[j] = true; });
+    const out = []; let gap = 0, shown = 0;
+    d.forEach((x, k) => {
+      if (!keep[k]) { gap++; return; }
+      if (gap) { out.push(el('span', { class: 'gap' }, `⋯ ${gap} unchanged line${gap > 1 ? 's' : ''}`)); gap = 0; }
+      if (shown++ < 400) out.push(el('span', { class: 'ln ' + (x[0] === '+' ? 'p' : x[0] === '-' ? 'm' : '') }, x[0] + ' ' + x[1]));
+    });
+    if (gap) out.push(el('span', { class: 'gap' }, `⋯ ${gap} unchanged line${gap > 1 ? 's' : ''}`));
+    if (shown > 400) out.push(el('div', { class: 'note' }, 'Showing the first 400 lines.'));
+    dv.replaceChildren(...out);
+  } catch (e) { note(e.message); }
+}
+$('more').onclick = () => { S.shown += PAGE; renderReview(); };
+$('sel-all').onclick = () => { S.plan.items.forEach(i => i.selected = true); S.plan.remoteOnly.forEach(d => d.selected = true); renderReview(); };
+$('sel-none').onclick = () => { S.plan.items.forEach(i => i.selected = false); S.plan.remoteOnly.forEach(d => d.selected = false); renderReview(); };
+
+/* ---------- push ---------- */
+async function pool(items, n, fn) {
+  let k = 0, failed = false;
+  const run = async () => { while (k < items.length && !failed) { const idx = k++; try { await fn(items[idx], idx); } catch (e) { failed = true; throw e; } } };
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, run));
+}
+async function push() {
+  const p = S.plan, base = `/repos/${p.owner}/${p.name}`;
+  const msg = $('msg').value.trim() || 'Update project files';
+  let todo = p.items.filter(i => i.status !== '=' && i.selected);
+  const dels = delList().filter(d => d.selected);
+  const tooBig = todo.filter(i => i.size > 100 * 1048576);
+  if (tooBig.length) { banner('err', `${tooBig[0].path} is over 100 MB. Uncheck it to continue.`); return; }
+  S.busy = true; $('primary').disabled = true;
+  try {
+    let head = p.head, tree = p.baseTree, exists = p.branchExists, lastSha = null;
+    if (p.empty) {
+      progress(0.02, 'Creating the first commit…');
+      const first = todo.shift();
+      const r = await gh(`${base}/contents/${encPath(first.path)}`, { method: 'PUT', body: { message: msg, content: toB64(await first.item.read()), branch: p.branch } });
+      head = r.commit.sha; tree = r.commit.tree.sha; exists = true; lastSha = head;
+    }
+    if (todo.length || dels.length) {
+      let done = 0;
+      await pool(todo, 3, async it => {
+        const bytes = await it.item.read();
+        const r = await gh(`${base}/git/blobs`, { method: 'POST', body: { content: toB64(bytes), encoding: 'base64' } });
+        it.blob = r.sha;
+        done++; progress(0.05 + 0.8 * done / todo.length, `Uploading files… ${done} of ${todo.length}`);
+      });
+      const entries = [
+        ...todo.map(it => ({ path: it.path, mode: it.mode, type: 'blob', sha: it.blob })),
+        ...dels.map(d => ({ path: d.path, mode: d.mode, type: 'blob', sha: null }))
+      ];
+      progress(0.88, 'Building the commit…');
+      for (let k = 0; k < entries.length; k += 1000) {
+        const t = await gh(`${base}/git/trees`, { method: 'POST', body: { base_tree: tree, tree: entries.slice(k, k + 1000) } });
+        tree = t.sha;
+      }
+      const c = await gh(`${base}/git/commits`, { method: 'POST', body: { message: msg, tree, parents: [head] } });
+      progress(0.95, 'Updating the branch…');
+      if (exists) await gh(`${base}/git/refs/heads/${encBranch(p.branch)}`, { method: 'PATCH', body: { sha: c.sha, force: false } });
+      else await gh(`${base}/git/refs`, { method: 'POST', body: { ref: 'refs/heads/' + p.branch, sha: c.sha } });
+      lastSha = c.sha;
+    }
+    const n = todo.length + dels.length + (p.empty ? 1 : 0);
+    const url = `https://github.com/${p.repo}/commit/${lastSha}`;
+    addHistory({ repo: p.repo, branch: p.branch, sha: lastSha, msg, n, t: Date.now(), url });
+    progress(null);
+    banner('ok', el('span', null, `Pushed ${n} change${n === 1 ? '' : 's'} to ${p.branch}. `, el('a', { href: url, target: '_blank', rel: 'noopener' }, 'View commit ' + lastSha.slice(0, 7))));
+    S.plan = null; $('review').hidden = true;
+  } catch (e) {
+    progress(null);
+    banner('err', e.status === 422 && /not a fast forward/i.test(e.raw || '') ? 'The branch changed while pushing. Inspect again and retry.' : e.message || String(e));
+  } finally { S.busy = false; refresh(); }
+}
+$('primary').addEventListener('click', () => { banner(''); S.plan ? push() : inspect(); });
+
+/* ---------- history ---------- */
+function loadHistory() { try { return JSON.parse(store.get('pushbox.history') || '[]'); } catch { return []; } }
+function addHistory(h) { store.set('pushbox.history', JSON.stringify([h, ...loadHistory()].slice(0, 8))); renderHistory(); }
+function renderHistory() {
+  const h = loadHistory(), ul = $('history');
+  $('hist-card').hidden = !h.length;
+  ul.replaceChildren(...h.map(x => el('li', null,
+    el('div', { class: 'h1' }, `${x.repo} · ${x.branch} · `, el('a', { href: x.url, target: '_blank', rel: 'noopener' }, x.sha.slice(0, 7))),
+    el('div', { class: 'h2' }, `${x.msg} · ${x.n} change${x.n === 1 ? '' : 's'} · ${new Date(x.t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`))));
+}
+
+/* Android WebView cannot pick folders, so offer ZIP and Files only. */
+if (/; wv\)/.test(navigator.userAgent)) {
+  $('pick-dir').hidden = true;
+  document.querySelector('.pick').style.gridTemplateColumns = '1fr 1fr';
+  $('pick-hint').textContent = 'To upload a folder, zip it first and pick the ZIP.';
+}
+refresh();
+</script>
+</body>
+</html>
